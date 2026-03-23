@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Your Orders</h2>
+
+<ul class="list-group">
+{% for order in orders %}
+<li class="list-group-item">
+    Order #{{ order.id }} -
+    £{{ order.total_price }} -
+    <strong>{{ order.status }}</strong>
+</li>
+{% endfor %}
+</ul>
+{% endblock %}
