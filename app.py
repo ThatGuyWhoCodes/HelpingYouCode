@@ -1,6 +1,7 @@
-from flask import Flask, render_template, redirect, url_for, request
+from flask import Flask, render_template, redirect, url_for, request, session
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
-from models import db, User, Product, Order, OrderItem, ProducerProfile
+from werkzeug.security import generate_password_hash, check_password_hash
+from models import db, User, Product, Order, OrderItem
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret-key'
@@ -11,14 +12,123 @@ db.init_app(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
-cart = []  # simple cart (easy for exam explanation)
-
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
 # ----------------------
-# PUBLIC ROUTES
+# AUTH (HASHED PASSWORDS)
+# ----------------------
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        hashed = generate_password_hash(request.form['password'])
+        user = User(
+            email=request.form['email'],
+            password=hashed,
+            role='customer'
+        )
+        db.session.add(user)
+        db.session.commit()
+        return redirect('/login')
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = User.query.filter_by(email=request.form['email']).first()
+        if user and check_password_hash(user.password, request.form['password']):
+            login_user(user)
+            return redirect('/')
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect('/')
+
+# ----------------------
+# SESSION CART
+# ----------------------
+@app.route('/add-to-cart/<int:id>')
+def add_to_cart(id):
+    cart = session.get('cart', [])
+    cart.append(id)
+    session['cart'] = cart
+    return redirect('/products')
+
+@app.route('/cart')
+def cart():
+    cart = session.get('cart', [])
+    items = Product.query.filter(Product.id.in_(cart)).all()
+    return render_template('cart.html', items=items)
+
+# ----------------------
+# CHECKOUT + ORDER STATUS
+# ----------------------
+@app.route('/checkout', methods=['POST'])
+@login_required
+def checkout():
+    cart = session.get('cart', [])
+    items = Product.query.filter(Product.id.in_(cart)).all()
+
+    total = sum(i.price for i in items)
+
+    order = Order(
+        user_id=current_user.id,
+        total_price=total,
+        delivery_type=request.form['delivery'],
+        scheduled_time=request.form['time'],
+        status="Pending"
+    )
+    db.session.add(order)
+    db.session.commit()
+
+    for item in items:
+        db.session.add(OrderItem(order_id=order.id, product_id=item.id, quantity=1))
+
+    current_user.loyalty_points += int(total)
+
+    db.session.commit()
+    session['cart'] = []
+
+    return redirect('/orders')
+
+# ----------------------
+# VIEW ORDERS (TRACKING)
+# ----------------------
+@app.route('/orders')
+@login_required
+def orders():
+    orders = Order.query.filter_by(user_id=current_user.id).all()
+    return render_template('orders.html', orders=orders)
+
+# ----------------------
+# ADMIN PANEL
+# ----------------------
+@app.route('/admin')
+@login_required
+def admin():
+    if current_user.role != 'admin':
+        return "Access denied"
+
+    orders = Order.query.all()
+    return render_template('admin.html', orders=orders)
+
+@app.route('/update-order/<int:id>')
+@login_required
+def update_order(id):
+    if current_user.role != 'admin':
+        return "Access denied"
+
+    order = Order.query.get(id)
+    order.status = request.args.get('status')
+    db.session.commit()
+    return redirect('/admin')
+
+# ----------------------
+# PRODUCTS
 # ----------------------
 @app.route('/')
 def index():
@@ -29,103 +139,6 @@ def index():
 def products():
     products = Product.query.all()
     return render_template('products.html', products=products)
-
-# ----------------------
-# AUTH
-# ----------------------
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        user = User.query.filter_by(email=request.form['email']).first()
-        if user and user.password == request.form['password']:
-            login_user(user)
-            return redirect(url_for('dashboard'))
-    return render_template('login.html')
-
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect('/')
-
-# ----------------------
-# PRODUCER DASHBOARD
-# ----------------------
-@app.route('/dashboard')
-@login_required
-def dashboard():
-    products = Product.query.filter_by(owner_id=current_user.id).all()
-    profile = ProducerProfile.query.filter_by(user_id=current_user.id).first()
-    return render_template('dashboard.html', products=products, profile=profile)
-
-@app.route('/add-product', methods=['POST'])
-@login_required
-def add_product():
-    product = Product(
-        name=request.form['name'],
-        price=float(request.form['price']),
-        stock=int(request.form['stock']),
-        owner_id=current_user.id
-    )
-    db.session.add(product)
-    db.session.commit()
-    return redirect('/dashboard')
-
-@app.route('/update-profile', methods=['POST'])
-@login_required
-def update_profile():
-    profile = ProducerProfile.query.filter_by(user_id=current_user.id).first()
-    if not profile:
-        profile = ProducerProfile(user_id=current_user.id)
-
-    profile.story = request.form['story']
-    profile.methods = request.form['methods']
-
-    db.session.add(profile)
-    db.session.commit()
-    return redirect('/dashboard')
-
-# ----------------------
-# CART + CHECKOUT
-# ----------------------
-@app.route('/add-to-cart/<int:id>')
-def add_to_cart(id):
-    cart.append(id)
-    return redirect('/products')
-
-@app.route('/cart')
-def view_cart():
-    items = Product.query.filter(Product.id.in_(cart)).all()
-    return render_template('cart.html', items=items)
-
-@app.route('/checkout', methods=['POST'])
-@login_required
-def checkout():
-    delivery = request.form['delivery']
-    time = request.form['time']
-
-    items = Product.query.filter(Product.id.in_(cart)).all()
-    total = sum(item.price for item in items)
-
-    order = Order(
-        user_id=current_user.id,
-        total_price=total,
-        delivery_type=delivery,
-        scheduled_time=time
-    )
-    db.session.add(order)
-    db.session.commit()
-
-    for item in items:
-        db.session.add(OrderItem(order_id=order.id, product_id=item.id, quantity=1))
-
-    # Loyalty points
-    current_user.loyalty_points += int(total)
-
-    db.session.commit()
-    cart.clear()
-
-    return redirect('/')
 
 if __name__ == '__main__':
     with app.app_context():
