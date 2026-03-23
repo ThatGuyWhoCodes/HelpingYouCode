@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Your Cart</h2>
+
+<ul>
+{% for item in items %}
+<li>{{ item.name }} - £{{ item.price }}</li>
+{% endfor %}
+</ul>
+
+<form method="POST" action="/checkout">
+<label>Delivery Method:</label>
+<select name="delivery">
+    <option value="delivery">Delivery</option>
+    <option value="collection">Collection</option>
+</select>
+
+<label>Choose Time:</label>
+<input type="datetime-local" name="time" required>
+
+<button type="submit">Checkout</button>
+</form>
+{% endblock %}
