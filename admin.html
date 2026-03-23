@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Admin Panel</h2>
+
+<ul class="list-group">
+{% for order in orders %}
+<li class="list-group-item">
+    Order {{ order.id }} - {{ order.status }}
+
+    <a href="/update-order/{{ order.id }}?status=Processing" class="btn btn-warning btn-sm">Processing</a>
+    <a href="/update-order/{{ order.id }}?status=Completed" class="btn btn-success btn-sm">Completed</a>
+</li>
+{% endfor %}
+</ul>
+{% endblock %}
