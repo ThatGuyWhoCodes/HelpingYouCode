@@ -1,0 +1,13 @@
+body {
+    font-family: Arial;
+    margin: 20px;
+}
+
+nav a {
+    margin-right: 10px;
+    text-decoration: none;
+}
+
+h1, h2 {
+    color: green;
+}
