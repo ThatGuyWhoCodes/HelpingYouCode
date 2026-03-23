@@ -7,13 +7,13 @@ db = SQLAlchemy()
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(100), unique=True)
-    password = db.Column(db.String(100))
-    role = db.Column(db.String(20))  # customer / producer
+    password = db.Column(db.String(200))
+    role = db.Column(db.String(20))  # admin / customer / producer
     loyalty_points = db.Column(db.Integer, default=0)
 
 class ProducerProfile(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(db.Integer)
     story = db.Column(db.Text)
     methods = db.Column(db.Text)
 
@@ -22,14 +22,15 @@ class Product(db.Model):
     name = db.Column(db.String(100))
     price = db.Column(db.Float)
     stock = db.Column(db.Integer)
-    owner_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    owner_id = db.Column(db.Integer)
 
 class Order(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer)
     total_price = db.Column(db.Float)
-    delivery_type = db.Column(db.String(20))  # delivery/collection
+    delivery_type = db.Column(db.String(20))
     scheduled_time = db.Column(db.String(50))
+    status = db.Column(db.String(20), default="Pending")  # NEW
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class OrderItem(db.Model):
