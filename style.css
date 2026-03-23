@@ -1,13 +1,18 @@
 body {
-    font-family: Arial;
-    margin: 20px;
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
 }
 
 nav a {
     margin-right: 10px;
-    text-decoration: none;
 }
 
-h1, h2 {
-    color: green;
+a:focus, button:focus {
+    outline: 3px solid black;
+}
+
+button {
+    background: green;
+    color: white;
+    padding: 5px;
 }
